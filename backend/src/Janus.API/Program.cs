@@ -4,6 +4,8 @@ using Janus.Infrastructure.Persistence.Repositories;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using Janus.Infrastructure.Persistence;
+using Janus.Domain.Entities;
+using Microsoft.AspNetCore.Identity;
 
 Env.Load();
 
@@ -20,7 +22,19 @@ var connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};" 
 builder.Services.AddDbContext<JanusDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
+{
+    // For simplicity in development, we can relax password rules.
+    // In production, you should enforce stronger password policies.
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequiredLength = 6;
+    options.Password.RequiredUniqueChars = 1;
+})
+    .AddEntityFrameworkStores<JanusDbContext>()
+    .AddDefaultTokenProviders();
 
 builder.Services.AddControllers(); // Ajout des contrôleurs
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
