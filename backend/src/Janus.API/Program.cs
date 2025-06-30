@@ -1,17 +1,16 @@
 using Janus.Application;
-using Janus.Application.Common.Interfaces;
-using Janus.Infrastructure.Persistence.Repositories;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using Janus.Infrastructure.Persistence;
 using Janus.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
+using System.IO;
+using Microsoft.AspNetCore.DataProtection;
 
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(AssemblyReference.Assembly));
 
 var connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};" +
@@ -24,8 +23,6 @@ builder.Services.AddDbContext<JanusDbContext>(options =>
 
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
-    // For simplicity in development, we can relax password rules.
-    // In production, you should enforce stronger password policies.
     options.Password.RequireDigit = false;
     options.Password.RequireLowercase = false;
     options.Password.RequireNonAlphanumeric = false;
@@ -36,22 +33,41 @@ builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
     .AddEntityFrameworkStores<JanusDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.AddControllers(); // Ajout des contrôleurs
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+
+if (builder.Environment.IsProduction())
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo("/var/keys/"))
+        .SetApplicationName("Janus");
+
+    builder.Services.ConfigureApplicationCookie(options =>
+    {
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.ExpireTimeSpan = TimeSpan.FromDays(7);
+        options.SlidingExpiration = true;
+    });
+}
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+if (app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthorization();
-
-app.MapControllers(); // Map des contrôleurs
-
+app.MapControllers();
 app.Run();
