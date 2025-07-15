@@ -29,7 +29,7 @@ public class LdapAuthService : IAuthService
         _logger = logger;
     }
 
-    public Task<string> LoginAsync(string email, string password)
+    public async Task<string> LoginAsync(string email, string password)
     {
         string searchBase = _ldapOptions.SearchBase;
         string filter = string.Format(_ldapOptions.UserFilter, email);
@@ -55,7 +55,7 @@ public class LdapAuthService : IAuthService
                 searchBase,
                 filter,
                 SearchScope.Subtree,
-                uniqueIdAttr, "dn"
+                uniqueIdAttr, "dn", "givenName", "sn"
             );
             var searchResponse = (SearchResponse)ldap.SendRequest(searchRequest);
             if (searchResponse.Entries.Count == 0)
@@ -74,10 +74,40 @@ public class LdapAuthService : IAuthService
                 throw new Exception($"LDAP attribute '{uniqueIdAttr}' is missing or null for user {email}");
             string uuid = uniqueId is byte[] bytes ? new Guid(bytes).ToString() : uniqueId.ToString() ?? string.Empty;
 
-            // Pour l'instant, on retourne juste l'UUID sans synchronisation avec la DB
-            _logger.LogInformation("LDAP authentication successful for {Email}, UUID: {Uuid}", email, uuid);
+            // Get user info from LDAP
+            var firstName = userEntry.Attributes["givenName"]?[0]?.ToString() ?? "LDAP";
+            var lastName = userEntry.Attributes["sn"]?[0]?.ToString() ?? "User";
 
-            return Task.FromResult(uuid);
+            // Synchronisation locale avec la base de données
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                user = new User {
+                    UserName = email,
+                    Email = email,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    LdapUuid = uuid  // Stocker l'UUID LDAP
+                };
+                var result = await _userManager.CreateAsync(user);
+                if (!result.Succeeded)
+                    throw new Exception("Failed to create local user");
+            }
+            else
+            {
+                // Mettre à jour l'UUID LDAP si nécessaire
+                if (string.IsNullOrEmpty(user.LdapUuid) || user.LdapUuid != uuid)
+                {
+                    user.LdapUuid = uuid;
+                    await _userManager.UpdateAsync(user);
+                }
+            }
+
+            // Connexion locale
+            await _signInManager.SignInAsync(user, isPersistent: false);
+
+            _logger.LogInformation("LDAP authentication successful for {Email}, UUID: {Uuid}", email, uuid);
+            return uuid;
         }
         catch (Exception ex)
         {
