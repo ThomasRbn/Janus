@@ -88,16 +88,7 @@ public class LdapAuthService : IAuthService
 
     public async Task<Guid> SignupAsync(string email, string password)
     {
-        var user = new User {
-            UserName = email,
-            Email = email,
-            FirstName = "LDAP",
-            LastName = "User"
-        };
-        var result = await _userManager.CreateAsync(user, password);
-        if (!result.Succeeded)
-            throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
-
-        return user.Id;
+        // LDAP does not support signup in the same way as local authentication
+        throw new NotImplementedException("LDAP does not support user signup. Please create users directly in the LDAP directory.");
     }
 }
