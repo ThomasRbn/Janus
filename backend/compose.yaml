@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: janus_db
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: janus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  lldap:
+    image: lldap/lldap:stable
+    container_name: janus_lldap
+    environment:
+      LLDAP_JWT_SECRET: hjbpVFKqaEtpnUbktQfDwKkBVwNx
+      LLDAP_KEY_SEED: bktQfDwKkBVwNx
+      LLDAP_LDAP_USER_PASS: password
+      LLDAP_LDAP_BASE_DN: dc=example,dc=com
+      TZ: Europe/Paris
+    ports:
+      - "3890:3890"   # LDAP
+      - "17170:17170" # Web UI
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Janus.Domain.Entities;
 using Janus.API.Dtos.Auth;
+using Janus.API.Services.Auth;
+using Janus.Domain.Interfaces.Services;
 
 namespace Janus.API.Controllers;
 
@@ -11,11 +13,26 @@ public class AuthController : ControllerBase
 {
     private readonly UserManager<User> _userManager;
     private readonly SignInManager<User> _signInManager;
+    private readonly IAuthService _authService;
 
-    public AuthController(UserManager<User> userManager, SignInManager<User> signInManager)
+    public AuthController(UserManager<User> userManager, SignInManager<User> signInManager, IAuthService authService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _authService = authService;
+    }
+    [HttpGet("test-ldap")]
+    public async Task<IActionResult> TestLdap([FromQuery] string email, [FromQuery] string password)
+    {
+        try
+        {
+            var uuid = await _authService.LoginAsync(email, password);
+            return Ok(new { Success = true, Uuid = uuid });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Success = false, Error = ex.Message });
+        }
     }
 
     [HttpPost("signup")]

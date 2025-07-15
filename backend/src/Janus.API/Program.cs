@@ -6,6 +6,9 @@ using Janus.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using System.IO;
 using Microsoft.AspNetCore.DataProtection;
+using Janus.API.Options;
+using Janus.Domain.Interfaces.Services;
+using Janus.API.Services.Auth;
 
 Env.Load();
 
@@ -13,11 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(AssemblyReference.Assembly));
 
-var connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};" +
-                     $"Port={Environment.GetEnvironmentVariable("DB_PORT")};" +
-                     $"Database={Environment.GetEnvironmentVariable("DB_DATABASE")};" +
-                     $"Username={Environment.GetEnvironmentVariable("DB_USERNAME")};" +
-                     $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD")}";
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<JanusDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -37,6 +36,9 @@ builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<LdapOptions>(builder.Configuration.GetSection("Ldap"));
+builder.Services.AddScoped<IAuthService, LdapAuthService>();
 
 
 if (builder.Environment.IsProduction())
