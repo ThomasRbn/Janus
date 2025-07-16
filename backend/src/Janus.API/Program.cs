@@ -10,8 +10,6 @@ using Janus.API.Options;
 using Janus.Domain.Interfaces.Services;
 using Janus.API.Services.Auth;
 
-Env.Load();
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(AssemblyReference.Assembly));
@@ -37,8 +35,23 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.Configure<LdapOptions>(builder.Configuration.GetSection("Ldap"));
-builder.Services.AddScoped<IAuthService, LdapAuthService>();
+
+
+// Authentication service mode configuration
+if (builder.Configuration.GetSection("Auth:Mode").Value == "Local")
+{
+    builder.Services.AddScoped<IAuthService, LocalAuthService>();
+}
+else if (builder.Configuration.GetSection("Auth:Mode").Value == "Ldap")
+{
+    builder.Services.Configure<LdapOptions>(builder.Configuration.GetSection("Ldap"));
+    builder.Services.AddScoped<IAuthService, LdapAuthService>();
+}
+else
+{
+    throw new InvalidOperationException("Invalid authentication mode configured. Please set 'Auth:Mode' to either 'Local' or 'Ldap'.");
+}
+
 
 
 if (builder.Environment.IsProduction())

@@ -5,18 +5,18 @@ using Janus.Infrastructure.Persistence;
 
 namespace Janus.API.Services.Auth;
 
-public class UserAuthService : IAuthService
+public class LocalAuthService : IAuthService
 {
     private readonly UserManager<User> _userManager;
     private readonly SignInManager<User> _signInManager;
     private readonly JanusDbContext _context;
-    private readonly ILogger<UserAuthService> _logger;
+    private readonly ILogger<LocalAuthService> _logger;
 
-    public UserAuthService(
+    public LocalAuthService(
         UserManager<User> userManager,
         SignInManager<User> signInManager,
         JanusDbContext context,
-        ILogger<UserAuthService> logger)
+        ILogger<LocalAuthService> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
