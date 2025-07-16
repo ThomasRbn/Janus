@@ -21,19 +21,6 @@ public class AuthController : ControllerBase
         _signInManager = signInManager;
         _authService = authService;
     }
-    [HttpGet("test-ldap")]
-    public async Task<IActionResult> TestLdap([FromQuery] string email, [FromQuery] string password)
-    {
-        try
-        {
-            var uuid = await _authService.LoginAsync(email, password);
-            return Ok(new { Success = true, Uuid = uuid });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { Success = false, Error = ex.Message });
-        }
-    }
 
     [HttpPost("signup")]
     public async Task<IActionResult> SignUp([FromBody] SignUpDto dto)
