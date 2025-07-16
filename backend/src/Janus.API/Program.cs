@@ -38,18 +38,24 @@ builder.Services.AddSwaggerGen();
 
 
 // Authentication service mode configuration
-if (builder.Configuration.GetSection("Auth:Mode").Value == "Local")
+var authMode = builder.Configuration.GetSection("Auth:Mode").Value;
+
+if (string.IsNullOrWhiteSpace(authMode))
 {
-    builder.Services.AddScoped<IAuthService, LocalAuthService>();
+    throw new InvalidOperationException("Authentication mode not configured. Please set 'Auth:Mode' to either 'Local' or 'Ldap'.");
 }
-else if (builder.Configuration.GetSection("Auth:Mode").Value == "Ldap")
+
+switch (authMode.ToLowerInvariant())
 {
-    builder.Services.Configure<LdapOptions>(builder.Configuration.GetSection("Ldap"));
-    builder.Services.AddScoped<IAuthService, LdapAuthService>();
-}
-else
-{
-    throw new InvalidOperationException("Invalid authentication mode configured. Please set 'Auth:Mode' to either 'Local' or 'Ldap'.");
+    case "local":
+        builder.Services.AddScoped<IAuthService, LocalAuthService>();
+        break;
+    case "ldap":
+        builder.Services.Configure<LdapOptions>(builder.Configuration.GetSection("Ldap"));
+        builder.Services.AddScoped<IAuthService, LdapAuthService>();
+        break;
+    default:
+        throw new InvalidOperationException($"Invalid authentication mode '{authMode}' configured. Please set 'Auth:Mode' to either 'Local' or 'Ldap'.");
 }
 
 

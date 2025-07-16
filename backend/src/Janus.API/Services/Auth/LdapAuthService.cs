@@ -116,7 +116,7 @@ public class LdapAuthService : IAuthService
         }
     }
 
-    public async Task<Guid> SignupAsync(string email, string password)
+    public Task<Guid> SignupAsync(string email, string password)
     {
         // LDAP does not support signup in the same way as local authentication
         throw new NotImplementedException("LDAP does not support user signup. Please create users directly in the LDAP directory.");
