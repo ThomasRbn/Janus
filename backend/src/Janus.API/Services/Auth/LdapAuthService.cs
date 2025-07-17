@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Identity;
 using Janus.Domain.Entities;
 using Janus.Domain.Exceptions.Auth;
+using Janus.Domain.Dtos;
 
 namespace Janus.API.Services.Auth;
 
@@ -31,10 +32,13 @@ public class LdapAuthService : IAuthService
         _logger = logger;
     }
 
-    public async Task<string> LoginAsync(string email, string password)
+    public async Task<string> LoginAsync(LoginDto loginDto)
     {
+        if (loginDto == null)
+            throw new ArgumentNullException(nameof(loginDto));
+            
         string searchBase = _ldapOptions.SearchBase;
-        string filter = string.Format(_ldapOptions.UserFilter, email);
+        string filter = string.Format(_ldapOptions.UserFilter, loginDto.Email);
         string uniqueIdAttr = _ldapOptions.UniqueIdAttribute;
 
         var serverUri = new Uri(_ldapOptions.Server);
@@ -63,24 +67,24 @@ public class LdapAuthService : IAuthService
             var userEntry = searchResponse.Entries[0];
             var userDn = userEntry.DistinguishedName;
             
-            var userCredential = new NetworkCredential(userDn, password);
+            var userCredential = new NetworkCredential(userDn, loginDto.Password);
             ldap.Bind(userCredential);
 
             var uniqueId = userEntry.Attributes[uniqueIdAttr][0];
             if (uniqueId == null)
-                throw new AuthenticationException($"LDAP attribute '{uniqueIdAttr}' is missing for user {email}");
+                throw new AuthenticationException($"LDAP attribute '{uniqueIdAttr}' is missing for user {loginDto.Email}");
             
             string uuid = uniqueId is byte[] bytes ? new Guid(bytes).ToString() : uniqueId.ToString() ?? string.Empty;
 
             var firstName = userEntry.Attributes["givenName"]?[0]?.ToString() ?? "LDAP";
             var lastName = userEntry.Attributes["sn"]?[0]?.ToString() ?? "User";
 
-            var user = await _userManager.FindByEmailAsync(email);
+            var user = await _userManager.FindByEmailAsync(loginDto.Email);
             if (user == null)
             {
                 user = new User {
-                    UserName = email,
-                    Email = email,
+                    UserName = loginDto.Email,
+                    Email = loginDto.Email,
                     FirstName = firstName,
                     LastName = lastName,
                     LdapUuid = uuid
@@ -103,27 +107,27 @@ public class LdapAuthService : IAuthService
 
             await _signInManager.SignInAsync(user, isPersistent: false);
 
-            _logger.LogInformation("LDAP authentication successful for {Email}, UUID: {Uuid}", email, uuid);
+            _logger.LogInformation("LDAP authentication successful for {Email}, UUID: {Uuid}", loginDto.Email, uuid);
             return uuid;
         }
         catch (AuthenticationException)
         {
-            _logger.LogWarning("LDAP authentication failed for {Email}", email);
+            _logger.LogWarning("LDAP authentication failed for {Email}", loginDto.Email);
             throw;
         }
         catch (UserCreationException)
         {
-            _logger.LogError("Failed to create local user from LDAP for {Email}", email);
+            _logger.LogError("Failed to create local user from LDAP for {Email}", loginDto.Email);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected LDAP error for {Email}", email);
+            _logger.LogError(ex, "Unexpected LDAP error for {Email}", loginDto.Email);
             throw new AuthenticationException("LDAP authentication failed due to server error", ex);
         }
     }
 
-    public Task<Guid> SignupAsync(string email, string password, string firstName, string lastName)
+    public Task<Guid> SignupAsync(SignUpDto signupDto)
     {
         throw new NotSupportedException("LDAP does not support user signup. Please create users directly in the LDAP directory.");
     }

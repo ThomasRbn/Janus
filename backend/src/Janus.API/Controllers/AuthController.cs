@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Identity;
-using Janus.Domain.Entities;
-using Janus.API.Dtos.Auth;
-using Janus.API.Services.Auth;
 using Janus.Domain.Interfaces.Services;
+using Janus.Domain.Exceptions.Auth;
+using Janus.Domain.Dtos;
 
 namespace Janus.API.Controllers;
 
@@ -11,15 +9,13 @@ namespace Janus.API.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly UserManager<User> _userManager;
-    private readonly SignInManager<User> _signInManager;
     private readonly IAuthService _authService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(UserManager<User> userManager, SignInManager<User> signInManager, IAuthService authService)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger)
     {
-        _userManager = userManager;
-        _signInManager = signInManager;
         _authService = authService;
+        _logger = logger;
     }
 
     [HttpPost("signup")]
@@ -30,23 +26,32 @@ public class AuthController : ControllerBase
             return BadRequest(new { Error = "All fields are required." });
         }
 
-        var user = new User
+        try
         {
-            UserName = dto.Email,
-            Email = dto.Email,
-            FirstName = dto.FirstName,
-            LastName = dto.LastName
-        };
-
-        var result = await _userManager.CreateAsync(user, dto.Password);
-
-        if (!result.Succeeded)
-        {
-            return BadRequest(new { Errors = result.Errors.Select(e => e.Description) });
+            var userId = await _authService.SignupAsync(dto);
+            return CreatedAtAction(nameof(SignUp), new { id = userId }, new { Id = userId, Email = dto.Email, FirstName = dto.FirstName, LastName = dto.LastName });
         }
-
-        // Optionnel : ne pas retourner l'objet user complet (éviter d'exposer des infos sensibles)
-        return CreatedAtAction(nameof(SignUp), new { id = user.Id }, new { user.Id, user.Email, user.FirstName, user.LastName });
+        catch (UserAlreadyExistsException ex)
+        {
+            return Conflict(new { Error = "User already exists", Email = ex.Email });
+        }
+        catch (UserCreationException ex)
+        {
+            return BadRequest(new { Error = "User creation failed", Errors = ex.Errors });
+        }
+        catch (NotSupportedException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during signup for {Email}", dto.Email);
+            return StatusCode(500, new { Error = "Internal server error" });
+        }
     }
 
     [HttpPost("login")]
@@ -57,29 +62,28 @@ public class AuthController : ControllerBase
             return BadRequest(new { Error = "Email and password are required." });
         }
 
-        var user = await _userManager.FindByEmailAsync(dto.Email);
-        if (user == null)
+        try
         {
-            // Toujours un message générique pour ne pas révéler si l'email existe
-            return Unauthorized(new { Error = "Invalid email or password." });
+            var userId = await _authService.LoginAsync(dto);
+            return Ok(new { Message = "Login successful", UserId = userId });
         }
-
-        var result = await _signInManager.PasswordSignInAsync(user, dto.Password, isPersistent: false, lockoutOnFailure: true);
-
-        if (result.IsLockedOut)
+        catch (AuthenticationException ex)
         {
-            return Unauthorized(new { Error = "Account is locked. Please try again later." });
+            return Unauthorized(new { Error = ex.Message });
         }
-        if (result.IsNotAllowed)
+        catch (UserCreationException ex)
         {
-            return Unauthorized(new { Error = "User is not allowed to sign in." });
+            _logger.LogError("User creation failed during LDAP login for {Email}", dto.Email);
+            return StatusCode(500, new { Error = "Failed to create user account", Errors = ex.Errors });
         }
-        if (!result.Succeeded)
+        catch (ArgumentException ex)
         {
-            return Unauthorized(new { Error = "Invalid email or password." });
+            return BadRequest(new { Error = ex.Message });
         }
-
-        // Optionnel : ne pas retourner d'infos sensibles
-        return Ok(new { Message = "Login successful", UserId = user.Id });
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during login for {Email}", dto.Email);
+            return StatusCode(500, new { Error = "Internal server error" });
+        }
     }
 }
