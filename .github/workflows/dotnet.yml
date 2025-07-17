@@ -3,8 +3,14 @@ name: .NET Build
 on:
   push:
     branches: [ "feature/cicd" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [ "master" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
 
 jobs:
   build:
