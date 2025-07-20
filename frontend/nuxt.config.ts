@@ -12,4 +12,10 @@ export default defineNuxtConfig({
     autoImportPath: '~/assets/svg/',
     defaultImport: 'component',
   },
+  components: [
+    {
+      path: '~/components',
+      pathPrefix: false,
+    },
+  ],
 })
